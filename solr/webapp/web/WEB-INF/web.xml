@@ -21,6 +21,11 @@
          version="2.5"
          metadata-complete="true"
 >
+  <context-param>
+    <param-name>org.eclipse.jetty.jsp.precompiled</param-name>
+    <param-value>true</param-value>
+  </context-param>
+
   <listener>
    <listener-class>org.apache.solr.servlet.CoreService</listener-class>
   </listener>

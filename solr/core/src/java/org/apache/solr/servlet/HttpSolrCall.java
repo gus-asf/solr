@@ -467,8 +467,8 @@ public class HttpSolrCall {
       if (log.isDebugEnabled()) {
         log.debug("USER_REQUIRED {} {}", req.getHeader("Authorization"), req.getUserPrincipal());
       }
-      sendError(statusCode,
-          "Authentication failed, Response code: " + statusCode);
+      ServletUtils.sendError(statusCode,
+          "Authentication failed, Response code: " + statusCode, response);
       if (shouldAudit(EventType.REJECTED)) {
         cores.getAuditLoggerPlugin().doAudit(new AuditEvent(EventType.REJECTED, req, context));
       }
@@ -478,8 +478,8 @@ public class HttpSolrCall {
       if (log.isDebugEnabled()) {
         log.debug("UNAUTHORIZED auth header {} context : {}, msg: {}", req.getHeader("Authorization"), context, authResponse.getMessage()); // nowarn
       }
-      sendError(statusCode,
-          "Unauthorized request, Response code: " + statusCode);
+      ServletUtils.sendError(statusCode,
+          "Unauthorized request, Response code: " + statusCode, response);
       if (shouldAudit(EventType.UNAUTHORIZED)) {
         cores.getAuditLoggerPlugin().doAudit(new AuditEvent(EventType.UNAUTHORIZED, req, context));
       }
@@ -487,8 +487,8 @@ public class HttpSolrCall {
     }
     if (!(statusCode == HttpStatus.SC_ACCEPTED) && !(statusCode == HttpStatus.SC_OK)) {
       log.warn("ERROR {} during authentication: {}", statusCode, authResponse.getMessage()); // nowarn
-      sendError(statusCode,
-          "ERROR during authorization, Response code: " + statusCode);
+      ServletUtils.sendError(statusCode,
+          "ERROR during authorization, Response code: " + statusCode, response);
       if (shouldAudit(EventType.ERROR)) {
         cores.getAuditLoggerPlugin().doAudit(new AuditEvent(EventType.ERROR, req, context));
       }
@@ -509,17 +509,10 @@ public class HttpSolrCall {
     MDCLoggingContext.setNode(cores);
 
     if (cores == null) {
-      sendError(503, "Server is shutting down or failed to initialize");
+      ServletUtils.sendError(503, "Server is shutting down or failed to initialize", response);
       return RETURN;
     }
 
-    if (solrDispatchFilter.abortErrorMessage != null) {
-      sendError(500, solrDispatchFilter.abortErrorMessage);
-      if (shouldAudit(EventType.ERROR)) {
-        cores.getAuditLoggerPlugin().doAudit(new AuditEvent(EventType.ERROR, getReq()));
-      }
-      return RETURN;
-    }
 
     try {
       init();
@@ -803,21 +796,13 @@ public class HttpSolrCall {
         if (exp != null) {
           SimpleOrderedMap<Object> info = new SimpleOrderedMap<>();
           int code = ResponseUtils.getErrorInfo(ex, info, log);
-          sendError(code, info.toString());
+          ServletUtils.sendError(code, info.toString(), response);
         }
       } finally {
         if (core == null && localCore != null) {
           localCore.close();
         }
       }
-    }
-  }
-
-  protected void sendError(int code, String message) throws IOException {
-    try {
-      response.sendError(code, message);
-    } catch (EOFException e) {
-      log.info("Unable to write error response, client closed connection or we are shutting down", e);
     }
   }
 

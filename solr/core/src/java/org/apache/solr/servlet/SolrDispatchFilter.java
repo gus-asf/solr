@@ -68,16 +68,11 @@ import static org.apache.solr.servlet.ServletUtils.excludedPath;
 //  that sets up a service from which things like CoreContainer can be requested. (or better yet injected)
 public class SolrDispatchFilter extends BaseSolrFilter implements PathExcluder {
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
-  public static final String ATTR_TRACING_SPAN = Span.class.getName();
-  public static final String ATTR_TRACING_TRACER = Tracer.class.getName();
-  public static final String ATTR_RATELIMIT_MANAGER = RateLimitManager.class.getName();
 
   // TODO: see if we can get rid of the holder here (Servlet spec actually guarantees ContextListeners run before filter init)
-  private ServiceHolder coreService;
+  private ServiceHolder coreServiceHolder;
 
   protected final CountDownLatch init = new CountDownLatch(1);
-
-  protected String abortErrorMessage = null;
 
   @Override
   public void setExcludePatterns(ArrayList<Pattern> excludePatterns) {
@@ -85,14 +80,10 @@ public class SolrDispatchFilter extends BaseSolrFilter implements PathExcluder {
   }
 
   private ArrayList<Pattern> excludePatterns;
-  
-  private final boolean isV2Enabled = !"true".equals(System.getProperty("disable.v2.api", "false"));
-
-  private RateLimitManager rateLimitManager;
 
   public HttpClient getHttpClient() {
     try {
-      return coreService.getService().getHttpClient();
+      return coreServiceHolder.getService().getHttpClient();
     } catch (UnavailableException e) {
       throw new SolrException(ErrorCode.SERVER_ERROR, "Internal Http Client Unavailable, startup may have failed");
     }
@@ -128,7 +119,7 @@ public class SolrDispatchFilter extends BaseSolrFilter implements PathExcluder {
   @Override
   public void init(FilterConfig config) throws ServletException {
     try {
-      coreService = CoreService.serviceForContext(config.getServletContext());
+      coreServiceHolder = CoreService.serviceForContext(config.getServletContext());
       SSLConfigurationsFactory.current().init();
       if (log.isTraceEnabled()) {
         log.trace("SolrDispatchFilter.init(): {}", this.getClass().getClassLoader());
@@ -152,7 +143,7 @@ public class SolrDispatchFilter extends BaseSolrFilter implements PathExcluder {
   }
 
   public CoreContainer getCores() throws UnavailableException {
-    return coreService.getService().getCoreContainer();
+    return coreServiceHolder.getService().getCoreContainer();
   }
 
   @Override
@@ -175,7 +166,7 @@ public class SolrDispatchFilter extends BaseSolrFilter implements PathExcluder {
     }
     Tracer t = getCores() == null ? GlobalTracer.get() : getCores().getTracer();
     request.setAttribute(Tracer.class.getName(), t);
-    RateLimitManager rateLimitManager = coreService.getService().getRateLimitManager();
+    RateLimitManager rateLimitManager = coreServiceHolder.getService().getRateLimitManager();
     request.setAttribute(RateLimitManager.class.getName(), rateLimitManager);
     ServletUtils.rateLimitRequest(request, response, () -> {
       try {
@@ -183,11 +174,11 @@ public class SolrDispatchFilter extends BaseSolrFilter implements PathExcluder {
       } catch (IOException | ServletException | SolrAuthenticationException e) {
         throw new ExceptionWhileTracing( e);
       }
-    }, true);
+    });
   }
 
   private static Span getSpan(HttpServletRequest req) {
-    return (Span) req.getAttribute(ATTR_TRACING_SPAN);
+    return (Span) req.getAttribute(ServletUtils.ATTR_TRACING_SPAN);
   }
 
   private void dispatch(FilterChain chain, HttpServletRequest request, HttpServletResponse response, boolean retry) throws IOException, ServletException, SolrAuthenticationException {
@@ -252,7 +243,7 @@ public class SolrDispatchFilter extends BaseSolrFilter implements PathExcluder {
     } catch (UnavailableException e) {
       throw new SolrException(ErrorCode.SERVER_ERROR, "Core Container Unavailable");
     }
-    if (isV2Enabled && (path.startsWith("/____v2/") || path.equals("/____v2"))) {
+    if (coreServiceHolder.getService().isV2Enabled() && (path.startsWith("/____v2/") || path.equals("/____v2"))) {
       return new V2HttpCall(this, cores, request, response, false);
     } else {
       return new HttpSolrCall(this, cores, request, response, retry);
@@ -342,6 +333,6 @@ public class SolrDispatchFilter extends BaseSolrFilter implements PathExcluder {
 
   @VisibleForTesting
   void replaceRateLimitManager(RateLimitManager rateLimitManager) {
-    coreService.getService().setRateLimitManager(rateLimitManager);
+    coreServiceHolder.getService().setRateLimitManager(rateLimitManager);
   }
 }

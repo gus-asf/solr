@@ -54,7 +54,7 @@ public class JettySolrRunnerTest extends SolrTestCaseJ4 {
       jetty.stop();
       jetty.start(false);
 
-      assertThat("After restart, jetty port should be different", jetty.getBaseUrl().getPort(), not(usedPort));
+      org.hamcrest.MatcherAssert.assertThat("After restart, jetty port should be different", jetty.getBaseUrl().getPort(), not(usedPort));
     }
     finally {
       if (jetty.isRunning())

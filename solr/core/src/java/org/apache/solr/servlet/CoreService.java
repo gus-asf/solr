@@ -87,7 +87,7 @@ public class CoreService implements ServletContextListener {
   private RateLimitManager rateLimitManager;
   private final CountDownLatch init = new CountDownLatch(1);
   private String registryName;
-
+  private final boolean isV2Enabled = !"true".equals(System.getProperty("disable.v2.api", "false"));
   // AFAIK the only reason we need this is to support JettySolrRunner for tests. In tests we might have
   // multiple CoreContainers in the same JVM, but I *think* that doesn't happen in a real server.
   private static final Map<ContextInitializationKey, ServiceHolder> services =
@@ -135,6 +135,7 @@ public class CoreService implements ServletContextListener {
       }
     }
   }
+
   public void close() {
     CoreContainer cc = cores;
     cores = null;
@@ -319,7 +320,7 @@ public class CoreService implements ServletContextListener {
   }
 
   /**
-   * Override this to change CoreContainer initialization
+   * CoreContainer initialization
    * @return a CoreContainer to hold this server's cores
    */
   protected CoreContainer createCoreContainer(Path solrHome, Properties nodeProps) {
@@ -367,6 +368,10 @@ public class CoreService implements ServletContextListener {
   @VisibleForTesting
   void setRateLimitManager(RateLimitManager rateLimitManager) {
     this.rateLimitManager = rateLimitManager;
+  }
+
+  public boolean isV2Enabled() {
+    return isV2Enabled;
   }
 
   private static class ContextInitializationKey {

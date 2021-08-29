@@ -41,6 +41,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpServletResponseWrapper;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -54,6 +55,11 @@ import java.util.regex.Pattern;
  */
 public abstract class ServletUtils {
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
+  public static final String ATTR_TRACING_SPAN = Span.class.getName();
+  public static final String ATTR_TRACING_TRACER = Tracer.class.getName();
+  public static final String ATTR_RATELIMIT_MANAGER = RateLimitManager.class.getName();
+
 
   static String CLOSE_STREAM_MSG = "Attempted close of http request or response stream - in general you should not do this, "
       + "you may spoil connection reuse and possibly disrupt a client. If you must close without actually needing to close, "
@@ -175,7 +181,7 @@ public abstract class ServletUtils {
     }
   }
 
-  static void rateLimitRequest(HttpServletRequest request, HttpServletResponse response, Runnable limitedExecution, boolean trace) throws ServletException, IOException {
+  static void rateLimitRequest(HttpServletRequest request, HttpServletResponse response, Runnable limitedExecution) throws ServletException, IOException {
     boolean accepted = false;
     RateLimitManager rateLimitManager = getRateLimitManager(request);
     try {
@@ -193,7 +199,7 @@ public abstract class ServletUtils {
         response.sendError(429, errorMessage);
       }
       // todo: this shouldn't be required, tracing and rate limiting should be independently composable
-      traceHttpRequestExecution2(request, response, limitedExecution, trace);
+      traceHttpRequestExecution(request, response, limitedExecution);
     } finally {
       if (accepted) {
         rateLimitManager.decrementActiveRequests(request);
@@ -206,7 +212,7 @@ public abstract class ServletUtils {
    *
    * @param tracedExecution the executed code
    */
-  private static void traceHttpRequestExecution2(HttpServletRequest request, HttpServletResponse response, Runnable tracedExecution, boolean required) throws ServletException, IOException {
+  private static void traceHttpRequestExecution(HttpServletRequest request, HttpServletResponse response, Runnable tracedExecution) throws ServletException, IOException {
     Tracer tracer = getTracer(request);
     if (tracer != null) {
       Span span = buildSpan(tracer, request);
@@ -245,20 +251,16 @@ public abstract class ServletUtils {
         span.finish();
       }
     } else {
-      if (required) {
-        throw new IllegalStateException("Tracing required, but could not find Tracer in request attribute:" + SolrDispatchFilter.ATTR_TRACING_TRACER);
-      } else {
-        tracedExecution.run();
-      }
+      throw new IllegalStateException("Could not find Tracer in request attribute:" + ATTR_TRACING_TRACER);
     }
   }
 
   private static Tracer getTracer(HttpServletRequest req) {
-    return (Tracer) req.getAttribute(SolrDispatchFilter.ATTR_TRACING_TRACER);
+    return (Tracer) req.getAttribute(ATTR_TRACING_TRACER);
   }
 
   private static RateLimitManager getRateLimitManager(HttpServletRequest req) {
-    return (RateLimitManager) req.getAttribute(SolrDispatchFilter.ATTR_RATELIMIT_MANAGER);
+    return (RateLimitManager) req.getAttribute(ATTR_RATELIMIT_MANAGER);
   }
 
   protected static Span buildSpan(Tracer tracer, HttpServletRequest request) {
@@ -290,6 +292,14 @@ public abstract class ServletUtils {
       } else {
         log.info("Could not consume full client request", e);
       }
+    }
+  }
+
+  protected static void sendError(int code, String message, HttpServletResponse response) throws IOException {
+    try {
+      response.sendError(code, message);
+    } catch (EOFException e) {
+      log.info("Unable to write error response, client closed connection or we are shutting down", e);
     }
   }
 

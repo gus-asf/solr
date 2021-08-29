@@ -534,15 +534,7 @@ public class JettySolrRunner {
           server.start();
         }
       }
-      synchronized (JettySolrRunner.this) {
-        int cnt = 0;
-        while (!waitOnSolr || !dispatchFilter.isRunning() ) {
-          this.wait(100);
-          if (cnt++ == 15) {
-            throw new RuntimeException("Jetty/Solr unresponsive");
-          }
-        }
-      }
+
 
       if (config.waitForLoadingCoresToFinishMs != null && config.waitForLoadingCoresToFinishMs > 0L) {
         waitForLoadingCoresToFinish(config.waitForLoadingCoresToFinishMs);
