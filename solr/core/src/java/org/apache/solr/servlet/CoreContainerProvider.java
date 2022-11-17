@@ -118,7 +118,7 @@ public class CoreContainerProvider implements ServletContextListener {
     close();
   }
 
-  CoreContainer getCoreContainer() throws UnavailableException {
+  public CoreContainer getCoreContainer() throws UnavailableException {
     waitForCoreContainer(() -> cores, init);
     return cores;
   }
@@ -489,6 +489,7 @@ public class CoreContainerProvider implements ServletContextListener {
       if (ctx == null) {
         throw new IllegalArgumentException("Context must not be null");
       }
+      log.info("INIT KEY - {}", ctx.hashCode());
       // if one of these is reachable both must be to avoid collection from weak hashmap, so
       // set an attribute holding this object to ensure we never get collected until the
       // ServletContext is eligible for collection too.
@@ -523,7 +524,7 @@ public class CoreContainerProvider implements ServletContextListener {
     }
   }
 
-  static class ServiceHolder {
+  public static class ServiceHolder {
     private volatile CoreContainerProvider service;
     private volatile ContextInitializationKey key;
 

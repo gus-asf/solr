@@ -28,6 +28,7 @@ import io.opentracing.tag.Tags;
 import io.opentracing.util.GlobalTracer;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,6 +76,7 @@ public class SolrDispatchFilter extends BaseSolrFilter implements PathExcluder {
   public static final String ATTR_TRACING_SPAN = Span.class.getName();
   public static final String ATTR_TRACING_TRACER = Tracer.class.getName();
   public static final String ATTR_RATELIMIT_MANAGER = RateLimitManager.class.getName();
+  public static final Pattern API2 = Pattern.compile("/api2/.+");
 
   // TODO: see if we can get rid of the holder here (Servlet spec actually guarantees
   // ContextListeners run before filter init, but JettySolrRunner that we use for tests is
@@ -207,6 +209,14 @@ public class SolrDispatchFilter extends BaseSolrFilter implements PathExcluder {
     if (excludedPath(excludePatterns, request, response, chain)) {
       return;
     }
+
+    //todo: temp hack
+    if (excludedPath(List.of(API2),request,response,chain)) {
+      log.info("Pass-through API2");
+      chain.doFilter(request,response);
+      return;
+    }
+
     Tracer t = getCores() == null ? GlobalTracer.get() : getCores().getTracer();
     request.setAttribute(Tracer.class.getName(), t);
     RateLimitManager rateLimitManager = coreService.getService().getRateLimitManager();

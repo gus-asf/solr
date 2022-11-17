@@ -38,7 +38,8 @@ dependencies {
   solrJettyClientLib project(path: ":solr:core", configuration: "jettyClientImplementation")
   // Make sure we keep the duplicate solrJettyClientLibs, but we want to remove all of the logging and metrics jars already in libExt
   implementation(configurations.solrCore - configurations.serverLib + configurations.solrJettyClientLib - configurations.libExt)
-}
+  implementation 'org.glassfish.jersey.containers:jersey-container-servlet:2.25.1'
+  }
 
 war {
   // Why are they in the source code at all if they're excluded from the distribution?

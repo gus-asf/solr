@@ -335,6 +335,7 @@ public class CoreContainer {
   }
 
   public SolrRequestHandler getRequestHandler(String path) {
+    log.info("getting {}", path);
     return RequestHandlerBase.getRequestHandler(path, containerHandlers);
   }
 

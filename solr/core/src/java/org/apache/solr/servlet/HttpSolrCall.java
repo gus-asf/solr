@@ -1265,7 +1265,7 @@ public class HttpSolrCall {
   }
 
   /** A faster method for randomly picking items when you do not need to consume all items. */
-  private static class RandomIterator<E> implements Iterator<E> {
+  public static class RandomIterator<E> implements Iterator<E> {
     private Random rand;
     private ArrayList<E> elements;
     private int size;
