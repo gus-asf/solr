@@ -243,7 +243,8 @@ public class TestCpuAllowedLimit extends SolrCloudTestCase {
                 "foo"));
     String s = rsp.jsonStr();
     System.err.println("rsp=" + s);
-    assertEquals("should have partial results", "omitted", rsp.getHeader().get("partialResults"));
+    Object partialResults = rsp.getHeader().get("partialResults");
+    assertEquals("should have partial results", "omitted", partialResults);
 
     // cpuAllowed set, should return partial results
     log.info("--- cpuAllowed 2, partial results, multi-threaded ---");

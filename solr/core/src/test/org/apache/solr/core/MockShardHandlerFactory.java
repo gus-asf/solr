@@ -16,6 +16,7 @@
  */
 package org.apache.solr.core;
 
+import org.apache.solr.common.SolrException;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.handler.component.ResponseBuilder;
@@ -58,7 +59,9 @@ public class MockShardHandlerFactory extends ShardHandlerFactory implements Plug
       }
 
       @Override
-      public void cancelAll() {}
+      public SolrException cancelAll() {
+        return null;
+      }
 
       @Override
       public ShardHandlerFactory getShardHandlerFactory() {

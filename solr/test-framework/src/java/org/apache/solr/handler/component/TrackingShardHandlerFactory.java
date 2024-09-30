@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.solr.cloud.MiniSolrCloudCluster;
+import org.apache.solr.common.SolrException;
 import org.apache.solr.common.cloud.DocCollection;
 import org.apache.solr.common.cloud.Replica;
 import org.apache.solr.common.cloud.Slice;
@@ -109,8 +110,9 @@ public class TrackingShardHandlerFactory extends HttpShardHandlerFactory {
       }
 
       @Override
-      public void cancelAll() {
+      public SolrException cancelAll() {
         wrapped.cancelAll();
+        return null;
       }
 
       @Override

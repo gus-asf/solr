@@ -18,6 +18,7 @@ package org.apache.solr.response;
 
 import static org.apache.solr.request.SolrQueryRequest.disallowPartialResults;
 
+import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
@@ -25,11 +26,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import javax.servlet.http.HttpServletResponse;
 import org.apache.solr.common.SolrException;
+import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SimpleOrderedMap;
 import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.search.ReturnFields;
 import org.apache.solr.search.SolrReturnFields;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * <code>SolrQueryResponse</code> is used by a query handler to return the response to a query
@@ -63,6 +67,8 @@ import org.apache.solr.search.SolrReturnFields;
  * @since solr 0.9
  */
 public class SolrQueryResponse {
+  private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
   public static final String NAME = "response";
   public static final String RESPONSE_HEADER_PARTIAL_RESULTS_KEY = "partialResults";
   public static final String RESPONSE_HEADER_PARTIAL_RESULTS_DETAILS_KEY = "partialResultsDetails";
@@ -150,6 +156,10 @@ public class SolrQueryResponse {
       if (header.get(SolrQueryResponse.RESPONSE_HEADER_PARTIAL_RESULTS_KEY) == null) {
         Object value = partialResultsStatus(disallowPartialResults(req.getParams()));
         header.add(SolrQueryResponse.RESPONSE_HEADER_PARTIAL_RESULTS_KEY, value);
+      }
+    } else {
+      if (!Boolean.valueOf(req.getParams().get(CommonParams.OMIT_HEADER))) {
+        log.warn("No header and omitHeader != true, partial results will be unreported, possible bug? (params:{})", req.getParams());
       }
     }
   }

@@ -1496,7 +1496,7 @@ public class QueryComponent extends SearchComponent {
     var result = new QueryResult();
     rsp.add("firstPhase", commandHandler.processResult(result, serializer));
     rsp.add("totalHitCount", commandHandler.getTotalHitCount());
-    rb.setResult(result);
+    rb.process(result);
   }
 
   private void doProcessGroupedDistributedSearchSecondPhase(ResponseBuilder rb, QueryCommand cmd)
@@ -1585,7 +1585,7 @@ public class QueryComponent extends SearchComponent {
     TopGroupsResultTransformer serializer = new TopGroupsResultTransformer(rb);
     var result = new QueryResult();
     rsp.add("secondPhase", commandHandler.processResult(result, serializer));
-    rb.setResult(result);
+    rb.process(result);
   }
 
   private void doProcessGroupedSearch(ResponseBuilder rb, QueryCommand cmd)
@@ -1663,7 +1663,7 @@ public class QueryComponent extends SearchComponent {
               "Cache limit of %d percent relative to maxdoc has exceeded. Please increase cache size or disable caching.",
               maxDocsPercentageToCache));
     }
-    rb.setResult(result);
+    rb.process(result);
 
     if (grouping.mainResult != null) {
       ResultContext ctx = new BasicResultContext(rb, grouping.mainResult);
@@ -1690,7 +1690,7 @@ public class QueryComponent extends SearchComponent {
     } catch (FuzzyTermsEnum.FuzzyTermsException e) {
       throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, e);
     }
-    rb.setResult(result);
+    rb.process(result);
 
     ResultContext ctx = new BasicResultContext(rb);
     rsp.addResponse(ctx);

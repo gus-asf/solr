@@ -19,6 +19,8 @@ package org.apache.solr.handler.component;
 import static org.apache.solr.common.params.CommonParams.PARTIAL_RESULTS;
 import static org.apache.solr.request.SolrQueryRequest.disallowPartialResults;
 
+import java.lang.invoke.MethodHandles;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +52,11 @@ import org.apache.solr.common.util.StrUtils;
 import org.apache.solr.core.CoreDescriptor;
 import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.request.SolrRequestInfo;
+import org.apache.solr.search.QueryLimits;
+import org.apache.solr.search.QueryLimitsExceededException;
 import org.apache.solr.security.AllowListUrlChecker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Solr's default {@link ShardHandler} implementation; uses Jetty's async HTTP Client APIs for
@@ -65,6 +71,8 @@ import org.apache.solr.security.AllowListUrlChecker;
  */
 @NotThreadSafe
 public class HttpShardHandler extends ShardHandler {
+
+  private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
   /**
    * If the request context map has an entry with this key and Boolean.TRUE as value, {@link
@@ -100,8 +108,8 @@ public class HttpShardHandler extends ShardHandler {
    */
   protected final Object FUTURE_MAP_LOCK = new Object();
 
-  protected Map<ShardResponse, CompletableFuture<LBSolrClient.Rsp>> responseFutureMap;
-  protected BlockingQueue<ShardResponse> responses;
+  protected final Map<ShardResponse, CompletableFuture<LBSolrClient.Rsp>> responseFutureMap;
+  private final BlockingQueue<ShardResponse> responses;
 
   /**
    * The number of pending requests. This must be incremented before a {@link ShardResponse} is
@@ -113,7 +121,8 @@ public class HttpShardHandler extends ShardHandler {
   protected AtomicInteger pending;
 
   private final Map<String, List<String>> shardToURLs;
-  protected LBHttp2SolrClient lbClient;
+  protected final LBHttp2SolrClient lbClient;
+  private volatile boolean canceled;
 
   public HttpShardHandler(HttpShardHandlerFactory httpShardHandlerFactory) {
     this.httpShardHandlerFactory = httpShardHandlerFactory;
@@ -331,9 +340,17 @@ public class HttpShardHandler extends ShardHandler {
           responseFutureMap.remove(rsp);
           pending.decrementAndGet();
         }
-
-        if (bailOnError && rsp.getException() != null)
-          return rsp; // if exception, return immediately
+        try {
+          if ((bailOnError && (rsp.getException() != null)) ||
+              QueryLimits.getCurrentLimits().maybeExitWithPartialResults("While receiving responses"))
+            return rsp; // if exception, return immediately
+        } catch (QueryLimitsExceededException e) {
+          SolrException solrException = cancelAll();
+          if (solrException != null) {
+            log.warn("Exceptions thrown while canceling timed out sub-requests", solrException);
+          }
+          return rsp;
+        }
         // add response to the response list... we do this after the take() and
         // not after the completion of "call" so we know when the last response
         // for a request was received.  Otherwise we might return the same
@@ -355,14 +372,47 @@ public class HttpShardHandler extends ShardHandler {
   }
 
   @Override
-  public void cancelAll() {
-    synchronized (FUTURE_MAP_LOCK) {
-      for (CompletableFuture<LBSolrClient.Rsp> future : responseFutureMap.values()) {
-        future.cancel(true);
-        pending.decrementAndGet();
+  public SolrException cancelAll() {
+    if (!this.canceled) {
+      synchronized (FUTURE_MAP_LOCK) {
+        // This section is complicated and protected from re-entry by double-checked locking
+        // because of the apparent possibility that this can be called a second time within the
+        // same thread. Rare CancellationExceptions (1 in 20 or so) and rare failures to
+        // report  "omitted" (causing failures in TestCpuAllowedLimit) occur otherwise.
+        // Adding this allowed tests to pass 1000 times without error/failure (despite the
+        // fact it seemed unnecessary at the outset). Also, it was possible to get
+        // ConcurrentModificationException despite the synchronization of all blocks
+        // mutating responseFutureMap...
+        if (!this.canceled) {
+          this.canceled = true;
+          List<Exception> cancelExceptions = null;
+          for (CompletableFuture<LBSolrClient.Rsp> future : responseFutureMap.values()) {
+            if (!future.isCancelled()) {
+              try {
+                future.cancel(true);
+              } catch (Exception e) {
+                if(cancelExceptions == null) {
+                  cancelExceptions = new ArrayList<>();
+                }
+                cancelExceptions.add(e);
+              } finally {
+                // even if exception thrown by postComplete() the future will be canceled.
+                pending.decrementAndGet();
+              }
+            }
+          }
+          responseFutureMap.clear();
+          if (cancelExceptions != null) {
+            SolrException solrException = new SolrException(SolrException.ErrorCode.UNKNOWN, "Some request cancellations thew exceptions (see suppressed)");
+            for (Exception cancelException : cancelExceptions) {
+              solrException.addSuppressed(cancelException);
+            }
+            return solrException;
+          }
+        }
       }
-      responseFutureMap.clear();
     }
+    return null;
   }
 
   @Override

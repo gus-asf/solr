@@ -19,6 +19,7 @@ package org.apache.solr.handler.component;
 import static org.apache.solr.common.params.CommonParams.DISTRIB;
 import static org.apache.solr.common.params.CommonParams.INDENT;
 
+import org.apache.solr.common.SolrException;
 import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.ShardParams;
@@ -72,7 +73,7 @@ public abstract class ShardHandler {
   public abstract ShardResponse takeCompletedOrError();
 
   /** Cancels all uncompleted requests managed by this instance */
-  public abstract void cancelAll();
+  public abstract SolrException cancelAll();
 
   public abstract ShardHandlerFactory getShardHandlerFactory();
 

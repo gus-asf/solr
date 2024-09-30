@@ -17,6 +17,7 @@
 package org.apache.solr.handler.component;
 
 import org.apache.solr.client.solrj.SolrResponse;
+import org.apache.solr.common.util.NamedList;
 
 public final class ShardResponse {
 
@@ -56,6 +57,18 @@ public final class ShardResponse {
 
   public SolrResponse getSolrResponse() {
     return rsp;
+  }
+
+  public boolean isPartial() {
+    SolrResponse solrResponse = getSolrResponse();
+    if (solrResponse == null) {
+      return false;
+    }
+    NamedList<Object> response = solrResponse.getResponse();
+    if (response == null) {
+      return false;
+    }
+    return response.findRecursive("responseHeader", "partialResults") != null;
   }
 
   public String getShard() {

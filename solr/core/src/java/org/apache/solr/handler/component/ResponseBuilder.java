@@ -442,7 +442,7 @@ public class ResponseBuilder {
   }
 
   /** Sets results from a SolrIndexSearcher.QueryResult. */
-  public void setResult(QueryResult result) {
+  public void process(QueryResult result) {
     setResults(result.getDocListAndSet());
     if (result.isPartialResultOmitted() || result.isPartialResults()) {
       rsp.setPartialResults(req);
